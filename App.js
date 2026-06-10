@@ -22,7 +22,7 @@ export default function App() {
             height: 60,
             paddingBottom: 6,
           },
-          tabBarActiveTintColor: '#00f0ff', // Ciano ativo do mockup
+          tabBarActiveTintColor: '#00f0ff', 
           tabBarInactiveTintColor: '#62697a',
           tabBarIcon: ({ focused, color, size }) => {
             let iconName;

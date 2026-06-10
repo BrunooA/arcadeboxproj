@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { 
   StyleSheet, Text, View, FlatList, TextInput, ActivityIndicator, 
-  SafeAreaView, ScrollView, TouchableOpacity, Image, Modal 
+  SafeAreaView, ScrollView, TouchableOpacity, Image, Modal, Alert
 } from 'react-native';
 import { gameService } from '../services/api';
 import { theme } from '../styles/themes';
@@ -12,24 +12,23 @@ export default function Home() {
   const [games, setGames] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-  
-  // Controle de Telas Internas (Busca vs Detalhes)
   const [selectedGame, setSelectedGame] = useState(null);
-  
-  // Controle do Modal de Salvamento
   const [modalVisible, setModalVisible] = useState(false);
+  
+  // ESTADOS FORMULÁRIO DO MODAL
   const [statusProgresso, setStatusProgresso] = useState('Quero Jogar');
   const [showDropdown, setShowDropdown] = useState(false);
   const [notaEstrelas, setNotaEstrelas] = useState(5);
   const [anotacoes, setAnotacoes] = useState('');
 
+  // INTEGRAÇÃO API: Executa a chamada do serviço Axios
   const fetchGames = async (query = '') => {
     setLoading(true);
     try {
       const data = await gameService.getGames(query);
       setGames(data);
     } catch (error) {
-      console.error(error);
+      console.error("Erro na busca da API RAWG:", error);
     } finally {
       setLoading(false);
     }
@@ -43,6 +42,7 @@ export default function Home() {
     setModalVisible(true);
   };
 
+  // OPERAÇÃO CRUD: [CREATE/UPDATE] - Envia os dados estruturados para o banco local
   const handleSaveToBox = async () => {
     if (!selectedGame) return;
 
@@ -59,12 +59,24 @@ export default function Home() {
 
     await storage.saveGame(gamePayload);
     setModalVisible(false);
-    setSelectedGame(null); // Volta para a busca
-    alert('Jogo salvo com sucesso na sua Caixa!');
+    setSelectedGame(null); // Reseta a pilha visual retornando para a busca
+    
+    // Limpa os campos do formulário para o próximo jogo não herdar os dados antigos
+    setStatusProgresso('Quero Jogar');
+    setNotaEstrelas(5);
+    setAnotacoes(''); // Deixa o campo de anotações vazio de novo
+    
+    Alert.alert('Sucesso', 'Jogo salvo com sucesso na sua Caixa!');
   };
 
-  // --- RENDERIZAÇÃO DA SUB-TELA: DETALHES DO JOGO ---
+  // RENDERIZAÇÃO CONDICIONAL: Tela de Detalhes ricos (Ajustada dinamicamente)
   if (selectedGame) {
+    // CORREÇÃO: Pega o primeiro gênero ou define um padrão
+    const generoPrincipal = selectedGame.genres && selectedGame.genres.length > 0 ? selectedGame.genres[0].name : 'Estratégia';
+    
+    // Cria uma sinopse contextualizada automática para o jogo selecionado não ficar travado
+    const sinopseDinamica = `Explore o universo incrível de ${selectedGame.name}. Um jogo eletrônico focado na categoria de ${generoPrincipal.toLowerCase()} que desafia os jogadores com mecânicas imersivas, escolhas marcantes e uma comunidade global de fãs. Lançado oficialmente pelo mercado de jogos em ${selectedGame.released || 'datas recentes'}.`;
+
     return (
       <SafeAreaView style={styles.container}>
         <ScrollView contentContainerStyle={styles.centerWrapper}>
@@ -77,41 +89,45 @@ export default function Home() {
             <View style={styles.detailTitleRow}>
               <Text style={styles.detailTitle}>{selectedGame.name}</Text>
               <View style={styles.metaBadge}>
-                <Text style={styles.metaText}>{selectedGame.metacritic || 92}</Text>
+                <Text style={styles.metaText}>{selectedGame.metacritic || 'N/A'}</Text>
               </View>
             </View>
           </View>
 
-          {/* Botão de Ação com Gradiente Simulado */}
           <TouchableOpacity style={styles.gradientButton} onPress={handleOpenSaveModal}>
             <Text style={styles.gradientButtonText}>+ Adicionar à Minha Caixa</Text>
           </TouchableOpacity>
 
-          {/* Ficha Técnica */}
           <View style={styles.fichaContainer}>
             <View style={styles.fichaRow}>
-              <Text style={styles.fichaLabel}>Desenvolvedor:</Text>
-              <Text style={styles.fichaValue}>CD PROJEKT RED</Text>
+              <Text style={styles.fichaLabel}>Gênero Principal:</Text>
+              <Text style={styles.fichaValue}>{generoPrincipal}</Text>
             </View>
             <View style={styles.fichaRow}>
               <Text style={styles.fichaLabel}>Lançamento:</Text>
-              <Text style={styles.fichaValue}>{selectedGame.released || '2015-05-18'}</Text>
+              <Text style={styles.fichaValue}>{selectedGame.released || 'Não Informado'}</Text>
             </View>
-            <Text style={styles.fichaLabelBlock}>Plataformas:</Text>
+            <Text style={styles.fichaLabelBlock}>Plataformas Disponíveis:</Text>
             <View style={styles.platformCapsuleContainer}>
-              {['PC', 'PlayStation 4', 'Xbox One', 'Nintendo Switch'].map((p, i) => (
-                <View key={i} style={styles.platformCapsule}><Text style={styles.platformCapsuleText}>{p}</Text></View>
-              ))}
+              {/* CORREÇÃO DA IMAGEM image_c4ac5c.png: Mapeia as plataformas reais vindas da API da RAWG */}
+              {selectedGame.platforms && selectedGame.platforms.length > 0 ? (
+                selectedGame.platforms.map((p, i) => (
+                  <View key={i} style={styles.platformCapsule}>
+                    <Text style={styles.platformCapsuleText}>{p.platform.name}</Text>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.platformCapsule}><Text style={styles.platformCapsuleText}>Multiplataforma</Text></View>
+              )}
             </View>
           </View>
 
           <Text style={styles.sinopseTitle}>SINOPSE</Text>
-          <Text style={styles.sinopseBody}>
-            The Witcher: Wild Hunt is a story-driven, next-generation open world role-playing game set in a visually stunning fantasy universe full of meaningful choices and impactful consequences...
-          </Text>
+          {/* CORREÇÃO: Renderiza a sinopse personalizada gerada de acordo com o jogo clicado */}
+          <Text style={styles.sinopseBody}>{sinopseDinamica}</Text>
         </ScrollView>
 
-        {/* --- MODAL DE SALVAMENTO (FLOW DO SLIDE 12/PRINT) --- */}
+        {/* MODAL FORMULÁRIO DE PERSISTÊNCIA */}
         <Modal visible={modalVisible} transparent={true} animationType="fade">
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
@@ -184,7 +200,7 @@ export default function Home() {
     );
   }
 
-  // --- RENDERIZAÇÃO DA SUB-TELA: LISTA DE BUSCA (PRINCIPAL) ---
+  // INTERFACE PADRÃO: Grid de Busca
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.centerWrapper} showsVerticalScrollIndicator={false}>
@@ -218,6 +234,8 @@ export default function Home() {
             data={games}
             scrollEnabled={false}
             keyExtractor={(item) => item.id.toString()}
+            numColumns={2}
+            columnWrapperStyle={{ gap: 16 }}
             renderItem={({ item }) => (
               <TouchableOpacity style={styles.rowCard} onPress={() => setSelectedGame(item)}>
                 <Image source={{ uri: item.background_image }} style={styles.rowCardImage} />
@@ -241,7 +259,7 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
-  centerWrapper: { alignSelf: 'center', width: '100%', maxWidth: 450, padding: 20 },
+  centerWrapper: { alignSelf: 'center', width: '100%', maxWidth: 1200, padding: 20 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, marginBottom: 20 },
   brandRow: { flexDirection: 'row', alignItems: 'center' },
   headerTitle: { color: theme.colors.textHeader, fontSize: 24, fontWeight: 'bold' },
@@ -251,21 +269,17 @@ const styles = StyleSheet.create({
   searchIcon: { marginLeft: 15, marginRight: 10 },
   input: { flex: 1, color: theme.colors.textHeader, fontSize: 14 },
   sectionTitle: { color: '#62697a', fontSize: 11, fontWeight: 'bold', letterSpacing: 1.5, marginBottom: 15 },
-  
-  // Estilo lista em linha (Mockup Destaques)
-  rowCard: { flexDirection: 'row', backgroundColor: theme.colors.surface, borderRadius: 12, marginBottom: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#1c2436', height: 95 },
+  rowCard: { flexDirection: 'row', backgroundColor: theme.colors.surface, borderRadius: 12, marginBottom: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#1c2436', height: 95, flex: 1, minWidth: 280 },
   rowCardImage: { width: 95, height: 95 },
   rowCardContent: { flex: 1, padding: 12, justifyContent: 'center' },
   rowGameTitle: { color: '#fff', fontSize: 15, fontWeight: 'bold' },
   rowGameRelease: { color: '#62697a', fontSize: 11, marginTop: 2 },
   metaRowBadge: { backgroundColor: '#072419', borderWidth: 1, borderColor: theme.colors.metaGreen, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4, alignSelf: 'flex-start', marginTop: 8 },
   metaRowText: { color: theme.colors.metaGreen, fontSize: 11, fontWeight: 'bold' },
-
-  // Estilo Ficha Técnica / Detalhes
   backButton: { marginBottom: 15 },
   backButtonText: { color: theme.colors.textBody, fontSize: 13 },
   detailCard: { backgroundColor: theme.colors.surface, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: theme.colors.border, marginBottom: 20 },
-  detailImage: { width: '100%', height: 200 },
+  detailImage: { width: '100%', height: 350 },
   detailTitleRow: { padding: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   detailTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', flex: 1, marginRight: 10 },
   metaBadge: { backgroundColor: theme.colors.metaGreen, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
@@ -282,8 +296,6 @@ const styles = StyleSheet.create({
   platformCapsuleText: { color: '#62697a', fontSize: 11, fontWeight: 'bold' },
   sinopseTitle: { color: '#fff', fontSize: 12, fontWeight: 'bold', marginBottom: 8, letterSpacing: 0.5 },
   sinopseBody: { color: theme.colors.textBody, fontSize: 13, lineHeight: 20 },
-
-  // Estilo Modal de Cadastro Completo
   modalOverlay: { flex: 1, backgroundColor: 'rgba(5, 7, 12, 0.85)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { backgroundColor: theme.colors.surface, width: '90%', maxWidth: 400, borderRadius: 16, padding: 20, borderWidth: 1, borderColor: '#2c1f3d' },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
